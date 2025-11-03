@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mini WhatsApp — Firebase Chat</title>
+<style>
+:root {
+  --accent:#25D366;
+  --bg:#e9edef;
+  --me:#dcf8c6;
+  --other:#fff;
+}
+*{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+html,body{margin:0;height:100%;width:100%;background:var(--bg);overflow:hidden}
+body{display:flex;align-items:stretch;justify-content:center}
+.app{width:100%;height:100%;background:#f7f7f8;display:grid;grid-template-columns:320px 1fr;overflow:hidden;box-shadow:0 0 20px rgba(0,0,0,0.12)}
+.sidebar{background:#075E54;color:#fff;padding:18px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.logo{width:46px;height:46px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;color:#063}
+.title{font-size:18px;font-weight:700}
+.nameBox{margin-top:8px}
+.nameInput,.regionInput{width:100%;padding:8px;border-radius:8px;border:none;margin-top:4px}
+.users{margin-top:18px;overflow:auto;flex:1}
+.userItem{padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.statusDot{width:10px;height:10px;border-radius:50%}
+.footerSmall{margin-top:auto;font-size:12px;opacity:0.9}
+.chatArea{
+  display:flex;
+  flex-direction:column;
+  background:linear-gradient(#f0f0f0,#f7f7f7);
+  height:100%;
+  overflow:hidden;
+}
+.chatHeader{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e0e0e0}
+.timestamp{font-size:12px;text-align:center;margin-bottom:8px;color:#666}
+
+/* ✅ FIXED CHAT WINDOW SCROLL AND HEIGHT */
+.chatWindow{
+  flex:1;
+  overflow-y:auto;
+  padding:18px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  scroll-behavior:smooth;
+  height:calc(100% - 60px); /* leave space for composer */
+  box-sizing:border-box;
+}
+
+/* ✅ Ensures composer never overlaps */
+.composer{
+  flex-shrink:0;
+  display:flex;
+  gap:8px;
+  padding:10px;
+  border-top:1px solid #e8e8e8;
+  background:#fff;
+  position:relative;
+  z-index:2;
+}
+.composer input{flex:1;padding:12px;border-radius:20px;border:1px solid #ddd}
+.btn{padding:10px 14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+.msg{max-width:70%;padding:10px 12px;border-radius:16px;word-wrap:break-word;position:relative}
+.msg.me{margin-left:auto;background:var(--me);border-bottom-right-radius:2px}
+.msg.other{margin-right:auto;background:var(--other);border-bottom-left-radius:2px}
+.msg .meta{font-size:11px;margin-top:4px;opacity:0.65;text-align:right}
+.small{font-size:12px}
+.typing{font-size:12px;opacity:0.8;margin-left:8px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10}
+.modal{background:#fff;padding:20px;border-radius:10px;width:360px;max-width:92%}
+.modal h2{margin:0 0 12px 0}
+@media (max-width:700px){.app{grid-template-columns:1fr;height:100%}.sidebar{display:none}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">WA</div>
+      <div>
+        <div class="title">Mini WhatsApp</div>
+        <div class="small">Firebase chat demo</div>
+      </div>
+    </div>
+    <div class="nameBox">
+      <label class="small">Your display name</label>
+      <input id="nameInput" class="nameInput" placeholder="Enter name">
+      <label class="small">Your region</label>
+      <input id="regionInput" class="regionInput" placeholder="Enter region">
+    </div>
+    <div style="margin-top:14px;font-weight:700">Participants</div>
+    <div id="users" class="users"></div>
+    <div class="footerSmall">Open in multiple devices/tabs to chat in real-time.</div>
+  </aside>
+
+  <main class="chatArea">
+    <div class="chatHeader">
+      <div style="font-weight:700">Mouth Shut</div>
+      <div id="typing" class="typing"></div>
+    </div>
+    <div id="chatWindow" class="chatWindow"></div>
+    <div class="composer">
+      <input id="messageInput" placeholder="Type a message">
+      <button id="sendBtn" class="btn">Send</button>
+    </div>
+  </main>
+</div>
+
+<div id="modalWrap" class="overlay">
+  <div class="modal">
+    <h2>Choose your display name and region</h2>
+    <input id="modalName" placeholder="Your name" style="width:100%;padding:10px;margin-top:8px;border:1px solid #ddd;border-radius:8px">
+    <input id="modalRegion" placeholder="Your region" style="width:100%;padding:10px;margin-top:8px;border:1px solid #ddd;border-radius:8px">
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button id="modalJoin" class="btn">Join</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+import { getDatabase, ref, push, onChildAdded, onValue, set, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-database.js";
+
+// --- Firebase config ---
+/ Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBePVd0r2m1pxfYZC7IlKLrPr9e_s_Pojs",
+  authDomain: "chatroom-family.firebaseapp.com",
+  databaseURL: "https://chatroom-family-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "chatroom-family",
+  storageBucket: "chatroom-family.firebasestorage.app",
+  messagingSenderId: "74185857623",
+  appId: "1:74185857623:web:4d9f6be660684c0185a112",
+  measurementId: "G-CZP69EDWFH"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+// --- DOM ---
+const chatWindow = document.getElementById('chatWindow');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+const nameInput = document.getElementById('nameInput');
+const regionInput = document.getElementById('regionInput');
+const usersDiv = document.getElementById('users');
+const typingDiv = document.getElementById('typing');
+const modalWrap = document.getElementById('modalWrap');
+const modalName = document.getElementById('modalName');
+const modalRegion = document.getElementById('modalRegion');
+const modalJoin = document.getElementById('modalJoin');
+
+let displayName = '', region = '';
+let userId = localStorage.getItem('firebase_user_id') || (Date.now() + '-' + Math.random().toString(36).slice(2));
+localStorage.setItem('firebase_user_id', userId);
+
+// --- Presence ---
+const presenceRef = ref(db, 'presence/' + userId);
+function heartbeat(){ if(!displayName) return; set(presenceRef, {name:displayName, region, lastSeen:Date.now()}); }
+setInterval(heartbeat, 4000);
+onDisconnect(presenceRef).remove();
+
+// --- Typing ---
+const typingRef = ref(db, 'typing/' + userId);
+function sendTyping(isTyping){ if(!displayName) return; set(typingRef, {name: displayName, typing: !!isTyping}); onDisconnect(typingRef).remove(); }
+messageInput.addEventListener('input',()=>{ sendTyping(true); clearTimeout(window._typingTO); window._typingTO=setTimeout(()=>sendTyping(false),1200); });
+
+// --- Send message ---
+sendBtn.addEventListener('click', sendMessage);
+messageInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }});
+
+function sendMessage(){
+  const text = messageInput.value.trim();
+  if(!text) return;
+  push(ref(db,'messages'), {userId, name:displayName, region, text, time:Date.now()});
+  messageInput.value='';
+  sendTyping(false);
+}
+
+// --- Receive messages ---
+onChildAdded(ref(db,'messages'), snapshot=>{
+  const msg = snapshot.val();
+  renderMessage(msg, msg.userId === userId);
+});
+
+function renderMessage(msg, me){
+  const wrap = document.createElement('div');
+  wrap.className = 'msg '+(me?'me':'other');
+  wrap.innerHTML = `<div style="font-weight:700;margin-bottom:6px">${escapeHtml(msg.name)} <span style="font-weight:400;opacity:0.7;">(${escapeHtml(msg.region)})</span></div>
+    <div>${escapeHtml(msg.text)}</div>
+    <div class="meta">${new Date(msg.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:true})}</div>`;
+  chatWindow.appendChild(wrap);
+  chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+}
+
+// --- Users list ---
+onValue(ref(db,'presence'), snapshot=>{
+  const users = snapshot.val() || {};
+  usersDiv.innerHTML='';
+  Object.values(users).forEach(u=>{
+    const el = document.createElement('div');
+    el.className = 'userItem';
+    el.innerHTML = `<div>${escapeHtml(u.name)} <span style="opacity:0.7;font-size:11px;">(${escapeHtml(u.region)})</span></div><div class="statusDot" style="background:#34c759"></div>`;
+    usersDiv.appendChild(el);
+  });
+});
+
+// --- Typing list ---
+onValue(ref(db,'typing'), snapshot=>{
+  const typingUsers = snapshot.val() || {};
+  const names = Object.values(typingUsers)
+    .filter(u=>u.name && u.typing && u.name !== displayName)
+    .map(u=>u.name);
+  typingDiv.textContent = names.length ? names.slice(0,3).join(', ') + ' typing...' : '';
+});
+
+// --- Modal for name/region ---
+async function setName(n,r){
+  n=n.trim(); r=r.trim()||'Unknown';
+  if(!n){ alert("Enter a name"); return; }
+
+  // Check if name already exists
+  const snapshot = await get(ref(db,'presence'));
+  const users = snapshot.val() || {};
+  const taken = Object.values(users).some(u => u.name.toLowerCase() === n.toLowerCase());
+  if(taken){
+    alert("This username is already taken! Please choose another.");
+    return;
+  }
+
+  displayName = n; region = r;
+  nameInput.value = displayName; regionInput.value = region;
+  modalWrap.style.display = 'none';
+  heartbeat();
+}
+
+nameInput.addEventListener('change',()=>setName(nameInput.value,regionInput.value));
+regionInput.addEventListener('change',()=>setName(nameInput.value,regionInput.value));
+modalJoin.addEventListener('click',()=>setName(modalName.value,modalRegion.value));
+
+modalWrap.style.display = 'flex';
+modalName.focus();
+
+// --- Utilities ---
+function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+</script>
+</body>
+</html>
+
+
