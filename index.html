@@ -34,8 +34,6 @@ body{display:flex;align-items:stretch;justify-content:center}
 }
 .chatHeader{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e0e0e0}
 .timestamp{font-size:12px;text-align:center;margin-bottom:8px;color:#666}
-
-/* ✅ FIXED CHAT WINDOW SCROLL AND HEIGHT */
 .chatWindow{
   flex:1;
   overflow-y:auto;
@@ -44,11 +42,9 @@ body{display:flex;align-items:stretch;justify-content:center}
   flex-direction:column;
   gap:6px;
   scroll-behavior:smooth;
-  height:calc(100% - 60px); /* leave space for composer */
+  height:calc(100% - 60px);
   box-sizing:border-box;
 }
-
-/* ✅ Ensures composer never overlaps */
 .composer{
   flex-shrink:0;
   display:flex;
@@ -121,19 +117,10 @@ body{display:flex;align-items:stretch;justify-content:center}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded, onValue, set, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-database.js";
+import { getDatabase, ref, push, onChildAdded, onValue, set, onDisconnect, get } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-database.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-analytics.js";
 
 // --- Firebase config ---
-/ Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
- 
-
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBePVd0r2m1pxfYZC7IlKLrPr9e_s_Pojs",
   authDomain: "chatroom-family.firebaseapp.com",
@@ -148,7 +135,8 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
- const db = getDatabase(app);
+const db = getDatabase(app);
+
 // --- DOM ---
 const chatWindow = document.getElementById('chatWindow');
 const messageInput = document.getElementById('messageInput');
@@ -228,27 +216,31 @@ onValue(ref(db,'typing'), snapshot=>{
 
 // --- Modal for name/region ---
 async function setName(n,r){
-  n=n.trim(); r=r.trim()||'Unknown';
+  n = n.trim();
+  r = r.trim() || 'Unknown';
   if(!n){ alert("Enter a name"); return; }
 
-  // Check if name already exists
   const snapshot = await get(ref(db,'presence'));
   const users = snapshot.val() || {};
   const taken = Object.values(users).some(u => u.name.toLowerCase() === n.toLowerCase());
-  if(taken){
-    alert("This username is already taken! Please choose another.");
-    return;
-  }
+  if(taken){ alert("This username is already taken!"); return; }
 
-  displayName = n; region = r;
-  nameInput.value = displayName; regionInput.value = region;
+  displayName = n;
+  region = r;
+
+  nameInput.value = displayName;
+  regionInput.value = region;
+
   modalWrap.style.display = 'none';
   heartbeat();
 }
 
-nameInput.addEventListener('change',()=>setName(nameInput.value,regionInput.value));
-regionInput.addEventListener('change',()=>setName(nameInput.value,regionInput.value));
-modalJoin.addEventListener('click',()=>setName(modalName.value,modalRegion.value));
+modalJoin.addEventListener('click', ()=>setName(modalName.value, modalRegion.value));
+modalName.addEventListener('keydown', e=>{ if(e.key==='Enter') setName(modalName.value, modalRegion.value); });
+modalRegion.addEventListener('keydown', e=>{ if(e.key==='Enter') setName(modalName.value, modalRegion.value); });
+
+nameInput.addEventListener('change', ()=>setName(nameInput.value, regionInput.value));
+regionInput.addEventListener('change', ()=>setName(nameInput.value, regionInput.value));
 
 modalWrap.style.display = 'flex';
 modalName.focus();
@@ -258,8 +250,3 @@ function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<',
 </script>
 </body>
 </html>
-
-
-
-
-
