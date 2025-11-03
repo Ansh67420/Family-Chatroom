@@ -132,7 +132,6 @@ const firebaseConfig = {
   measurementId: "G-CZP69EDWFH"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getDatabase(app);
@@ -214,31 +213,38 @@ onValue(ref(db,'typing'), snapshot=>{
   typingDiv.textContent = names.length ? names.slice(0,3).join(', ') + ' typing...' : '';
 });
 
-// --- Modal for name/region ---
+// --- Modal logic ---
 async function setName(n,r){
   n = n.trim();
   r = r.trim() || 'Unknown';
   if(!n){ alert("Enter a name"); return; }
 
-  const snapshot = await get(ref(db,'presence'));
-  const users = snapshot.val() || {};
-  const taken = Object.values(users).some(u => u.name.toLowerCase() === n.toLowerCase());
-  if(taken){ alert("This username is already taken!"); return; }
+  try {
+    const snapshot = await get(ref(db,'presence'));
+    const users = snapshot.val() || {};
+    const taken = Object.values(users).some(u => u.name.toLowerCase() === n.toLowerCase());
+    if(taken){ alert("This username is already taken!"); return; }
 
-  displayName = n;
-  region = r;
+    displayName = n;
+    region = r;
 
-  nameInput.value = displayName;
-  regionInput.value = region;
+    nameInput.value = displayName;
+    regionInput.value = region;
 
-  modalWrap.style.display = 'none';
-  heartbeat();
+    modalWrap.style.display = 'none'; // ✅ modal closes here
+    heartbeat();
+  } catch(err){
+    console.error(err);
+    alert("Something went wrong. Try again.");
+  }
 }
 
+// Modal event listeners
 modalJoin.addEventListener('click', ()=>setName(modalName.value, modalRegion.value));
 modalName.addEventListener('keydown', e=>{ if(e.key==='Enter') setName(modalName.value, modalRegion.value); });
 modalRegion.addEventListener('keydown', e=>{ if(e.key==='Enter') setName(modalName.value, modalRegion.value); });
 
+// Sidebar inputs
 nameInput.addEventListener('change', ()=>setName(nameInput.value, regionInput.value));
 regionInput.addEventListener('change', ()=>setName(nameInput.value, regionInput.value));
 
