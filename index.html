@@ -127,6 +127,8 @@ import { getDatabase, ref, push, onChildAdded, onValue, set, remove, onDisconnec
 / Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
+  const db = getDatabase(app);
+
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -256,6 +258,7 @@ function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<',
 </script>
 </body>
 </html>
+
 
 
 
